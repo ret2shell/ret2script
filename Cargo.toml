@@ -1,0 +1,28 @@
+[package]
+name = "ret2script"
+version = "1.4.2"
+edition = "2021"
+rust-version = "1.78.0"
+description = "Checker script runner for Ret2Shell - A feature-riches CTF challenge platform."
+authors = ["Reverier-Xu <reverier.xu@woooo.tech>"]
+homepage = "https://github.com/ret2shell/ret2script"
+keywords = ["ctf", "challenge", "rune", "script", "programming language"]
+
+[dependencies]
+rune = { version="0.13", features = ["workspace", "tokio"] }
+rune-modules = { version = "0.13", features = ["full"] }
+thiserror = "1.0"
+async-trait = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.38", features = ["full"] }
+chrono = "0.4"
+once_cell = "1.19"
+tracing = "0.1"
+ring = "0.17"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "ret2script"
+path = "src/main.rs"
