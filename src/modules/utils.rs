@@ -6,4 +6,3 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let module = Module::from_meta(self::module_meta)?;
     Ok(module)
 }
-
