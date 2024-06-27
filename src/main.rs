@@ -2,7 +2,12 @@ use std::{collections::HashMap, env::current_dir, path::Path, sync::Arc};
 
 use clap::Parser;
 use ret2script::modules::bucket::Ret2Bucket;
-use rune::{alloc, runtime::Object, Source, Sources, Vm};
+use rune::{
+    alloc,
+    runtime::Object,
+    termcolor::{ColorChoice, StandardStream},
+    Context, Diagnostics, Source, Sources, Vm,
+};
 
 #[derive(Parser, Debug)]
 #[command(name = "ret2script")]
@@ -47,7 +52,7 @@ async fn main() {
 
 async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Result<()> {
     let cwd = current_dir()?;
-    let mut context = rune_modules::default_context()?;
+    let mut context = Context::new();
     context.install(rune_modules::http::module(true)?)?;
     context.install(rune_modules::json::module(true)?)?;
     context.install(rune_modules::toml::module(true)?)?;
@@ -57,8 +62,17 @@ async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Resul
     context.install(ret2script::modules::audit::module(true)?)?;
 
     let mut sources = Sources::new();
+    let mut diagnostics = Diagnostics::new();
     sources.insert(Source::from_path(script.as_ref())?)?;
-    let unit = rune::prepare(&mut sources).with_context(&context).build()?;
+    let unit = rune::prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .build();
+    if !diagnostics.is_empty() {
+        let mut writer = StandardStream::stderr(ColorChoice::Always);
+        diagnostics.emit(&mut writer, &sources)?;
+    }
+    let unit = unit?;
     let runtime = context.runtime()?;
     let mut vm = Vm::new(Arc::new(runtime), Arc::new(unit));
     let mut user = Object::new();
@@ -97,16 +111,15 @@ async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Resul
     let output = vm
         .async_call(["check"], (bucket, user, team, submission))
         .await?;
-    let (result, message, audit): (bool, String, Option<(Option<i64>, String)>) =
-        rune::from_value(output)?;
-    println!("Check result: \n\tresult:\t{result}\n\tmessage:\t{message}\n\taudit:\t{audit:?}");
+    let (result, message, audit): (bool, String, Vec<Object>) = rune::from_value(output)?;
+    println!("Check result: \n\tresult:\t\t{result}\n\tmessage:\t{message}\n\taudit:\t\t{audit:?}");
 
     Ok(())
 }
 
 async fn environ(script: impl AsRef<Path>) -> anyhow::Result<()> {
     let cwd = current_dir()?;
-    let mut context = rune_modules::default_context()?;
+    let mut context = Context::new();
     context.install(rune_modules::http::module(true)?)?;
     context.install(rune_modules::json::module(true)?)?;
     context.install(rune_modules::toml::module(true)?)?;
@@ -116,8 +129,17 @@ async fn environ(script: impl AsRef<Path>) -> anyhow::Result<()> {
     context.install(ret2script::modules::audit::module(true)?)?;
 
     let mut sources = Sources::new();
+    let mut diagnostics = Diagnostics::new();
     sources.insert(Source::from_path(script.as_ref())?)?;
-    let unit = rune::prepare(&mut sources).with_context(&context).build()?;
+    let unit = rune::prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .build();
+    if !diagnostics.is_empty() {
+        let mut writer = StandardStream::stderr(ColorChoice::Always);
+        diagnostics.emit(&mut writer, &sources)?;
+    }
+    let unit = unit?;
     let runtime = context.runtime()?;
     let mut vm = Vm::new(Arc::new(runtime), Arc::new(unit));
     let mut user = Object::new();

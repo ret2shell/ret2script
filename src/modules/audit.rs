@@ -1,8 +1,4 @@
-use rune::{
-    alloc::fmt::TryWrite,
-    runtime::{Formatter},
-    vm_write, Any, ContextError, Module,
-};
+use rune::{alloc::fmt::TryWrite, runtime::Formatter, vm_write, Any, ContextError, Module};
 use std::{collections::HashMap, num::ParseIntError};
 
 use once_cell::sync::Lazy;
