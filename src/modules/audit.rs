@@ -1,31 +1,7 @@
-use rune::{alloc::fmt::TryWrite, runtime::Formatter, vm_write, Any, ContextError, Module};
-use std::{collections::HashMap, num::ParseIntError};
+use rune::{ContextError, Module};
+use std::{collections::HashMap, io};
 
 use once_cell::sync::Lazy;
-use thiserror::Error;
-
-#[derive(Error, Any, Debug)]
-#[rune(item = ::ret2api::audit)]
-pub enum AuditError {
-    #[error("encrypted length does not match: {0}")]
-    EncryptedLengthMismatch(String),
-    #[error("flag data broken: {0}")]
-    FlagDataBroken(String),
-    #[error("flag suffix broken: {0}")]
-    FlagSuffixBroken(#[from] ParseIntError),
-}
-
-impl AuditError {
-    #[rune::function(vm_result, protocol = STRING_DISPLAY)]
-    pub(crate) fn display(&self, f: &mut Formatter) {
-        vm_write!(f, "{}", self.to_string());
-    }
-
-    #[rune::function(vm_result, protocol = STRING_DEBUG)]
-    pub(crate) fn debug(&self, f: &mut Formatter) {
-        vm_write!(f, "{:?}", self.to_string());
-    }
-}
 
 static LEET_CHAR_TABLE: Lazy<HashMap<u8, Vec<u8>>> = Lazy::new(|| {
     let mut map = HashMap::new();
@@ -294,22 +270,26 @@ impl FlagStego {
         result
     }
 
-    pub fn unleet(&self, template: &str, data: &str) -> Result<i64, AuditError> {
+    pub fn unleet(&self, template: &str, data: &str) -> Result<i64, io::Error> {
         // split the data into encrypted data and hex string using template's length
         let template_len = template.len();
+        if template_len >= data.len() {
+            return Err(io::Error::other("flag length mispatch"));
+        }
         let (e_data, e_hex) = data.split_at(template_len);
         let mut e_data = e_data.chars().rev();
-        let mut e = u64::from_str_radix(e_hex, 16)?;
+        let mut e =
+            u64::from_str_radix(e_hex, 16).map_err(|_| io::Error::other("flag data broken"))?;
         for c in template.chars().rev() {
             let ec = e_data
                 .next()
-                .ok_or(AuditError::EncryptedLengthMismatch("data".to_string()))?;
+                .ok_or(io::Error::other("flag length mispatch"))?;
             if let Some(replace) = LEET_CHAR_TABLE.get(&(c as u8)) {
                 // println!("c: {c}, replace: {replace:?}, e: {e}, ec: {ec}");
                 let char_t_index = replace
                     .iter()
                     .position(|&x| x == ec as u8)
-                    .ok_or(AuditError::FlagDataBroken("data".to_string()))?;
+                    .ok_or(io::Error::other("flag data broken"))?;
                 // println!("e: {e}, c: {c}, ec: {ec}, e_index: {char_t_index}");
                 e *= replace.len() as u64;
                 e += char_t_index as u64;
@@ -346,10 +326,8 @@ mod tests {
 #[rune::module(::ret2api::audit)]
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::from_meta(self::module_meta)?;
-    module.ty::<AuditError>()?;
     module.function_meta(encode)?;
     module.function_meta(decode)?;
-    module.function_meta(cheated)?;
     Ok(module)
 }
 
@@ -360,12 +338,7 @@ pub fn encode(template: &str, key: &str, id: i64) -> String {
 }
 
 #[rune::function]
-pub fn decode(template: &str, key: &str, flag: &str) -> Result<i64, AuditError> {
+pub fn decode(template: &str, key: &str, flag: &str) -> Result<i64, io::Error> {
     let flag_stego = FlagStego::new(key);
     flag_stego.unleet(template, flag)
-}
-
-#[rune::function]
-pub fn cheated(peer_team: Option<i64>, reason: &str) -> Option<(Option<i64>, String)> {
-    Some((peer_team, reason.to_owned()))
 }
