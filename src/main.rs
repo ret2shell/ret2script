@@ -110,7 +110,12 @@ async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Resul
     let bucket = Ret2Bucket::try_new(&cwd)?;
     let output = vm
         .async_call(["check"], (bucket, user, team, submission))
-        .await?;
+        .await;
+    if output.is_err() {
+        println!("Script ended with error: {output:?}");
+        return Ok(());
+    }
+    let output = output?;
     let (result, message, audit): (bool, String, Vec<Object>) = rune::from_value(output)?;
     println!("Check result: \n\tresult:\t\t{result}\n\tmessage:\t{message}\n\taudit:\t\t{audit:?}");
 
@@ -164,7 +169,7 @@ async fn environ(script: impl AsRef<Path>) -> anyhow::Result<()> {
     let bucket = Ret2Bucket::try_new(&cwd)?;
     let output = vm.async_call(["environ"], (bucket, user, team)).await?;
     let object: Object = rune::from_value(output)?;
-    let mut environ = HashMap::new();
+    let mut environ: HashMap<String, String> = HashMap::new();
     for (key, value) in object.iter() {
         environ.insert(key.to_string(), rune::from_value(value.clone())?);
     }
