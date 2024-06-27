@@ -19,6 +19,9 @@ chrono = "0.4"
 once_cell = "1.19"
 tracing = "0.1"
 ring = "0.17"
+nanoid = "0.4"
+uuid = { version = "1.9", features = ["v4", "fast-rng"] }
+hex = "0.4"
 
 [lib]
 path = "src/lib.rs"
