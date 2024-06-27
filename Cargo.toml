@@ -9,7 +9,7 @@ homepage = "https://github.com/ret2shell/ret2script"
 documentation = "https://docs.rs/ret2script"
 repository = "https://github.com/ret2shell/ret2script"
 readme = "./README.md"
-keywords = ["ctf", "challenge", "rune", "script", "programming language"]
+keywords = ["ctf", "challenge", "rune", "script"]
 license = "MIT"
 
 [dependencies]
