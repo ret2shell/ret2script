@@ -6,6 +6,9 @@ rust-version = "1.78.0"
 description = "Checker script runner for Ret2Shell - A feature-riches CTF challenge platform."
 authors = ["Reverier-Xu <reverier.xu@woooo.tech>"]
 homepage = "https://github.com/ret2shell/ret2script"
+documentation = "https://docs.rs/ret2script"
+repository = "https://github.com/ret2shell/ret2script"
+readme = "./README.md"
 keywords = ["ctf", "challenge", "rune", "script", "programming language"]
 
 [dependencies]

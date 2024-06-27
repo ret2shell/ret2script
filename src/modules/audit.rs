@@ -1,6 +1,6 @@
 use rune::{
     alloc::fmt::TryWrite,
-    runtime::{Formatter, Object},
+    runtime::{Formatter},
     vm_write, Any, ContextError, Module,
 };
 use std::{collections::HashMap, num::ParseIntError};
