@@ -10,6 +10,7 @@ documentation = "https://docs.rs/ret2script"
 repository = "https://github.com/ret2shell/ret2script"
 readme = "./README.md"
 keywords = ["ctf", "challenge", "rune", "script", "programming language"]
+license = "MIT"
 
 [dependencies]
 rune = { version="0.13", features = ["workspace", "tokio"] }
