@@ -129,7 +129,7 @@ async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Resul
         "{}",
         "---------------------------------------------".dimmed()
     );
-    let output: Result<(bool, String, Vec<Object>), Value> = rune::from_value(output)?;
+    let output: Result<(bool, String, Option<Object>), Value> = rune::from_value(output)?;
     if let Ok((result, message, audit)) = output {
         println!(
             "{}\n\t{}\t\t= {result}\n\t{}\t\t= {message}\n\t{}\t\t= {audit:?}",
