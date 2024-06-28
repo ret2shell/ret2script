@@ -2,7 +2,7 @@ use std::{collections::HashMap, env::current_dir, path::Path, sync::Arc};
 
 use clap::Parser;
 use colored::Colorize;
-use ret2script::modules::bucket::Ret2Bucket;
+use ret2script::modules::bucket::Bucket;
 use rune::{
     alloc,
     runtime::Object,
@@ -113,7 +113,7 @@ async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Resul
         rune::to_value(flag.as_ref())?,
     )?;
     println!("{}\t= {submission:?}", "Submission".yellow());
-    let bucket = Ret2Bucket::try_new(&cwd)?;
+    let bucket = Bucket::try_new(&cwd)?;
     let output = vm
         .async_call(["check"], (bucket, user, team, submission))
         .await;
@@ -175,7 +175,7 @@ async fn environ(script: impl AsRef<Path>) -> anyhow::Result<()> {
         "---------------------------------------------".dimmed()
     );
 
-    let bucket = Ret2Bucket::try_new(&cwd)?;
+    let bucket = Bucket::try_new(&cwd)?;
     let output = vm.async_call(["environ"], (bucket, user, team)).await?;
     let object: Result<Object, Value> = rune::from_value(output)?;
     if let Ok(object) = object {

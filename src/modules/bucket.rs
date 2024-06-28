@@ -1,5 +1,5 @@
 use std::{
-    fs::{read_dir, File},
+    fs::{read_dir, File as StdFile},
     io::{self, Read},
     path::{Path, PathBuf},
 };
@@ -36,30 +36,30 @@ use rune::{Any, ContextError, Module};
 #[rune::module(::ret2api::bucket)]
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::from_meta(self::module_meta)?;
-    module.ty::<Ret2Bucket>()?;
-    module.ty::<Ret2File>()?;
-    module.function_meta(Ret2Bucket::open)?;
-    module.function_meta(Ret2Bucket::list)?;
-    module.function_meta(Ret2File::get_bytes)?;
-    module.function_meta(Ret2File::get_str)?;
+    module.ty::<Bucket>()?;
+    module.ty::<File>()?;
+    module.function_meta(Bucket::open)?;
+    module.function_meta(Bucket::list)?;
+    module.function_meta(File::get_bytes)?;
+    module.function_meta(File::get_str)?;
     Ok(module)
 }
 
 /// the bucket instance.
 #[derive(Clone, Debug, Any)]
 #[rune(item = ::ret2api::bucket)]
-pub struct Ret2Bucket {
+pub struct Bucket {
     root: PathBuf,
 }
 
 /// the file instance.
 #[derive(Debug, Any)]
 #[rune(item = ::ret2api::bucket)]
-pub struct Ret2File {
-    file: File,
+pub struct File {
+    file: StdFile,
 }
 
-impl Ret2Bucket {
+impl Bucket {
     /// init a new bucket instance, the path in args defines bucket root, any file operation in
     /// this bucket must under the root path.
     pub fn try_new(path: impl AsRef<Path>) -> Result<Self, io::Error> {
@@ -70,13 +70,13 @@ impl Ret2Bucket {
 
     /// open a file in bucket, returns file object.
     #[rune::function]
-    pub fn open(&self, rel_path: &str) -> Result<Ret2File, io::Error> {
+    pub fn open(&self, rel_path: &str) -> Result<File, io::Error> {
         let path = self.root.join(rel_path).to_owned().canonicalize()?;
         if !path.starts_with(&self.root) {
             return Err(io::Error::other("path traversal detected"));
         }
-        Ok(Ret2File {
-            file: File::open(path)?,
+        Ok(File {
+            file: StdFile::open(path)?,
         })
     }
 
@@ -93,7 +93,7 @@ impl Ret2Bucket {
     }
 }
 
-impl Ret2File {
+impl File {
     /// read a file into bytes, returns file content and file length in bytes.
     #[rune::function]
     pub fn get_bytes(&mut self) -> Result<(Vec<u8>, i64), io::Error> {

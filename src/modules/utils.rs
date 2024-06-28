@@ -27,6 +27,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 
 /// Flag construction utils.
 #[derive(Any, Debug, Clone)]
+#[rune(item = ::ret2api::utils)]
 pub struct Flag {
     prefix: String,
     content: String,
