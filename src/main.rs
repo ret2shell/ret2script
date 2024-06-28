@@ -1,12 +1,13 @@
 use std::{collections::HashMap, env::current_dir, path::Path, sync::Arc};
 
 use clap::Parser;
+use colored::Colorize;
 use ret2script::modules::bucket::Ret2Bucket;
 use rune::{
     alloc,
     runtime::Object,
     termcolor::{ColorChoice, StandardStream},
-    Context, Diagnostics, Source, Sources, Vm,
+    Context, Diagnostics, Source, Sources, Value, Vm,
 };
 
 #[derive(Parser, Debug)]
@@ -50,9 +51,8 @@ async fn main() {
     }
 }
 
-async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Result<()> {
-    let cwd = current_dir()?;
-    let mut context = Context::new();
+fn compile_source(script: impl AsRef<Path>) -> anyhow::Result<Vm> {
+    let mut context = Context::with_default_modules()?;
     context.install(rune_modules::http::module(true)?)?;
     context.install(rune_modules::json::module(true)?)?;
     context.install(rune_modules::toml::module(true)?)?;
@@ -60,6 +60,7 @@ async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Resul
     context.install(ret2script::modules::crypto::module(true)?)?;
     context.install(ret2script::modules::bucket::module(true)?)?;
     context.install(ret2script::modules::audit::module(true)?)?;
+    context.install(ret2script::modules::utils::module(true)?)?;
 
     let mut sources = Sources::new();
     let mut diagnostics = Diagnostics::new();
@@ -74,7 +75,12 @@ async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Resul
     }
     let unit = unit?;
     let runtime = context.runtime()?;
-    let mut vm = Vm::new(Arc::new(runtime), Arc::new(unit));
+    Ok(Vm::new(Arc::new(runtime), Arc::new(unit)))
+}
+
+async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Result<()> {
+    let cwd = current_dir()?;
+    let mut vm = compile_source(script)?;
     let mut user = Object::new();
     user.insert(alloc::String::try_from("id")?, rune::to_value(3307)?)?;
     user.insert(
@@ -85,15 +91,15 @@ async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Resul
         alloc::String::try_from("institute_id")?,
         rune::to_value(1106)?,
     )?;
-    println!("User: {user:?}");
+    println!("{}\t\t= {user:?}", "User".blue());
     let mut team = Object::new();
-    team.insert(alloc::String::try_from("id")?, rune::to_value(114)?)?;
+    team.insert(alloc::String::try_from("id")?, rune::to_value(114514)?)?;
     team.insert(alloc::String::try_from("name")?, rune::to_value("te4m")?)?;
     team.insert(
         alloc::String::try_from("institute_id")?,
-        rune::to_value(514)?,
+        rune::to_value(1106)?,
     )?;
-    println!("Team: {team:?}");
+    println!("{}\t\t= {team:?}", "Team".green());
     let mut submission = Object::new();
     submission.insert(alloc::String::try_from("id")?, rune::to_value(1919)?)?;
     submission.insert(alloc::String::try_from("user_id")?, rune::to_value(3307)?)?;
@@ -106,47 +112,44 @@ async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Resul
         alloc::String::try_from("content")?,
         rune::to_value(flag.as_ref())?,
     )?;
-    println!("Submission: {submission:?}");
+    println!("{}\t= {submission:?}", "Submission".yellow());
     let bucket = Ret2Bucket::try_new(&cwd)?;
     let output = vm
         .async_call(["check"], (bucket, user, team, submission))
         .await;
     if output.is_err() {
-        println!("Script ended with error: {output:?}");
+        println!(
+            "{}: {output:?}",
+            "Script ended with runtime error".red().bold()
+        );
         return Ok(());
     }
     let output = output?;
-    let (result, message, audit): (bool, String, Vec<Object>) = rune::from_value(output)?;
-    println!("Check result: \n\tresult:\t\t{result}\n\tmessage:\t{message}\n\taudit:\t\t{audit:?}");
-
+    println!(
+        "{}",
+        "---------------------------------------------".dimmed()
+    );
+    let output: Result<(bool, String, Vec<Object>), Value> = rune::from_value(output)?;
+    if let Ok((result, message, audit)) = output {
+        println!(
+            "{}\n\t{}\t\t= {result}\n\t{}\t\t= {message}\n\t{}\t\t= {audit:?}",
+            "Result".green(),
+            "Correct".blue(),
+            "Message".blue(),
+            "Audit".blue()
+        );
+    } else {
+        println!(
+            "{}",
+            "Script returned early from '?' operators.".red().bold()
+        );
+    }
     Ok(())
 }
 
 async fn environ(script: impl AsRef<Path>) -> anyhow::Result<()> {
     let cwd = current_dir()?;
-    let mut context = Context::new();
-    context.install(rune_modules::http::module(true)?)?;
-    context.install(rune_modules::json::module(true)?)?;
-    context.install(rune_modules::toml::module(true)?)?;
-    context.install(rune_modules::process::module(true)?)?;
-    context.install(ret2script::modules::crypto::module(true)?)?;
-    context.install(ret2script::modules::bucket::module(true)?)?;
-    context.install(ret2script::modules::audit::module(true)?)?;
-
-    let mut sources = Sources::new();
-    let mut diagnostics = Diagnostics::new();
-    sources.insert(Source::from_path(script.as_ref())?)?;
-    let unit = rune::prepare(&mut sources)
-        .with_context(&context)
-        .with_diagnostics(&mut diagnostics)
-        .build();
-    if !diagnostics.is_empty() {
-        let mut writer = StandardStream::stderr(ColorChoice::Always);
-        diagnostics.emit(&mut writer, &sources)?;
-    }
-    let unit = unit?;
-    let runtime = context.runtime()?;
-    let mut vm = Vm::new(Arc::new(runtime), Arc::new(unit));
+    let mut vm = compile_source(script)?;
     let mut user = Object::new();
     user.insert(alloc::String::try_from("id")?, rune::to_value(3307)?)?;
     user.insert(
@@ -157,22 +160,32 @@ async fn environ(script: impl AsRef<Path>) -> anyhow::Result<()> {
         alloc::String::try_from("institute_id")?,
         rune::to_value(1106)?,
     )?;
-    println!("User: {user:?}");
+    println!("{}\t\t= {user:?}", "User".blue());
     let mut team = Object::new();
-    team.insert(alloc::String::try_from("id")?, rune::to_value(114)?)?;
+    team.insert(alloc::String::try_from("id")?, rune::to_value(114514)?)?;
     team.insert(alloc::String::try_from("name")?, rune::to_value("te4m")?)?;
     team.insert(
         alloc::String::try_from("institute_id")?,
-        rune::to_value(514)?,
+        rune::to_value(1106)?,
     )?;
-    println!("Team: {team:?}");
+    println!("{}\t\t= {team:?}", "Team".green());
+
+    println!(
+        "{}",
+        "---------------------------------------------".dimmed()
+    );
+
     let bucket = Ret2Bucket::try_new(&cwd)?;
     let output = vm.async_call(["environ"], (bucket, user, team)).await?;
-    let object: Object = rune::from_value(output)?;
-    let mut environ: HashMap<String, String> = HashMap::new();
-    for (key, value) in object.iter() {
-        environ.insert(key.to_string(), rune::from_value(value.clone())?);
+    let object: Result<Object, Value> = rune::from_value(output)?;
+    if let Ok(object) = object {
+        let mut environ: HashMap<String, String> = HashMap::new();
+        for (key, value) in object.iter() {
+            environ.insert(key.to_string(), rune::from_value(value.clone())?);
+        }
+        println!("{}: {environ:?}", "Result".green());
+    } else {
+        println!("Error occured during env generation");
     }
-    println!("Environ: {environ:?}");
     Ok(())
 }

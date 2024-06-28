@@ -240,12 +240,23 @@ pub struct FlagStego {
 }
 
 impl FlagStego {
+    /// Construct a FlagStego instance.
+    ///
+    /// ## Examples
+    ///
+    /// ```rust
+    /// let flag_stego = FlagStego::new("some_key");
+    ///
+    /// let flag = "hello_world";
+    /// let encrypted_flag = flag_stego.leet(flag, 114514); // -> encrypted flag
+    /// ```
     pub fn new(key: &str) -> Self {
         Self {
             key: key.to_string(),
         }
     }
 
+    /// hide a number in flag string with key encrypted.
     pub fn leet(&self, template: &str, data: i64) -> String {
         let encrypted = encrypt_raw(&data.to_le_bytes(), &self.key);
         // turn the encrypted data into a i64
@@ -270,6 +281,7 @@ impl FlagStego {
         result
     }
 
+    /// extract the number hidding in the flag string
     pub fn unleet(&self, template: &str, data: &str) -> Result<i64, io::Error> {
         // split the data into encrypted data and hex string using template's length
         let template_len = template.len();
@@ -323,6 +335,13 @@ mod tests {
 }
 
 /// Construct the `ret2api::audit` module.
+///
+/// ## Usage
+///
+/// ```rust
+///     let mut context = Context::with_default_modules()?;
+///     context.install(ret2script::modules::audit::module(true)?)?;
+/// ```
 #[rune::module(::ret2api::audit)]
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::from_meta(self::module_meta)?;
@@ -331,12 +350,38 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     Ok(module)
 }
 
+/// encode the flag template with custom key.
+///
+/// In rune script:
+///
+/// ```rust
+/// use ret2api::audit;
+///
+/// pub fn environ(bucket, user, team) {
+///   Ok(#{
+///     FLAG: `flag{${audit::encode("yes_you_are_right_but_you_should_play_genshin_impact", "some_key", user.id)}}`
+///   })
+/// }
+/// ```
 #[rune::function]
 pub fn encode(template: &str, key: &str, id: i64) -> String {
     let flag_stego = FlagStego::new(key);
     flag_stego.leet(template, id)
 }
 
+/// Decrypt the data from flag.
+///
+/// In rune script:
+///
+/// ```rust
+/// use ret2api::audit;
+///
+/// pub fn check(bucket, user, team, submission) {
+///   ...
+///   let decrypted_team_id = audit::decode("yes_you_are_right_but_you_should_play_genshin_impact", "some_key", "you_s41D_RIGht-6uT_Y0U-ShOULd_pI@y-GeN5H1N_lMP4CT1");
+///   ...
+/// }
+/// ```
 #[rune::function]
 pub fn decode(template: &str, key: &str, flag: &str) -> Result<i64, io::Error> {
     let flag_stego = FlagStego::new(key);

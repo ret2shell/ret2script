@@ -7,6 +7,13 @@ use ring::{
 use rune::{Any, ContextError, Module};
 
 /// Construct the `ret2api::crypto` module.
+///
+/// ## Usage
+///
+/// ```rust
+///     let mut context = Context::with_default_modules()?;
+///     context.install(ret2script::modules::crypto::module(true)?)?;
+/// ```
 #[rune::module(::ret2api::crypto)]
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::from_meta(self::module_meta)?;
@@ -28,11 +35,13 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     Ok(module)
 }
 
+/// Pesudo-random numbers generator.
 #[derive(Any, Debug)]
 #[rune(item = ::ret2api::crypto)]
 pub struct Rng;
 
 impl Rng {
+    /// get a float64 random numbers in range.
     #[rune::function(path = Self::rand)]
     pub fn rand(min: f64, max: f64) -> Result<f64, io::Error> {
         if max <= min {
@@ -53,6 +62,7 @@ impl Rng {
         Ok(result)
     }
 
+    /// get a int64 random numbers in range.
     #[rune::function(path = Self::rand_int)]
     pub fn rand_int(min: i64, max: i64) -> Result<i64, io::Error> {
         if max <= min {
@@ -74,33 +84,43 @@ impl Rng {
     }
 }
 
+/// Uuid generator.
+///
+/// For legacy use only, please use nanoid for better experience.
 #[derive(Any, Debug)]
 #[rune(item = ::ret2api::crypto)]
 pub struct Uuid;
 
 impl Uuid {
+    /// get a new uuid v4 string.
     #[rune::function(path = Self::new)]
     pub fn new() -> String {
         uuid::Uuid::new_v4().to_string()
     }
 }
 
+/// Nanoid generator.
 #[derive(Any, Debug)]
 #[rune(item = ::ret2api::crypto)]
 pub struct Nanoid;
 
 impl Nanoid {
+    /// get a new nanoid string.
     #[rune::function(path = Self::new)]
     pub fn new() -> String {
         nanoid::nanoid!()
     }
 }
 
+/// Hash functions
+///
+/// functions here wraps the SHA* module in `ring` crate.
 #[derive(Any, Debug)]
 #[rune(item = ::ret2api::crypto)]
 pub struct Hash;
 
 impl Hash {
+    /// get sha256 sum hex string for message.
     #[rune::function(path = Self::sha256sum)]
     pub fn sha256sum(message: &[u8]) -> String {
         let mut context = Context::new(&SHA256);
@@ -108,6 +128,7 @@ impl Hash {
         hex::encode(context.finish().as_ref())
     }
 
+    /// get sha256 sum hex string for message.
     #[rune::function(path = Self::sha256sum_str)]
     pub fn sha256sum_str(message: &str) -> String {
         let mut context = Context::new(&SHA256);
@@ -115,6 +136,7 @@ impl Hash {
         hex::encode(context.finish().as_ref())
     }
 
+    /// get sha512 sum hex string for message.
     #[rune::function(path = Self::sha512sum)]
     pub fn sha512sum(message: &[u8]) -> String {
         let mut context = Context::new(&SHA512);
@@ -122,6 +144,7 @@ impl Hash {
         hex::encode(context.finish().as_ref())
     }
 
+    /// get sha512 sum hex string for message.
     #[rune::function(path = Self::sha512sum_str)]
     pub fn sha512sum_str(message: &str) -> String {
         let mut context = Context::new(&SHA512);
@@ -129,6 +152,7 @@ impl Hash {
         hex::encode(context.finish().as_ref())
     }
 
+    /// get sha1 sum hex string for message, for legacy use only, please use sha256 instead.
     #[rune::function(path = Self::sha1sum)]
     pub fn sha1sum(message: &[u8]) -> String {
         let mut context = Context::new(&SHA1_FOR_LEGACY_USE_ONLY);
@@ -136,6 +160,7 @@ impl Hash {
         hex::encode(context.finish().as_ref())
     }
 
+    /// get sha1 sum hex string for message, for legacy use only, please use sha256 instead.
     #[rune::function(path = Self::sha1sum_str)]
     pub fn sha1sum_str(message: &str) -> String {
         let mut context = Context::new(&SHA1_FOR_LEGACY_USE_ONLY);
