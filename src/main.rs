@@ -61,6 +61,7 @@ fn compile_source(script: impl AsRef<Path>) -> anyhow::Result<Vm> {
     context.install(ret2script::modules::bucket::module(true)?)?;
     context.install(ret2script::modules::audit::module(true)?)?;
     context.install(ret2script::modules::utils::module(true)?)?;
+    context.install(ret2script::modules::regex::module(true)?)?;
 
     let mut sources = Sources::new();
     let mut diagnostics = Diagnostics::new();
