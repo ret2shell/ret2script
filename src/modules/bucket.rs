@@ -56,6 +56,7 @@ pub struct Bucket {
 #[derive(Debug, Any)]
 #[rune(item = ::ret2api::bucket)]
 pub struct File {
+    name: String,
     file: StdFile,
 }
 
@@ -75,7 +76,9 @@ impl Bucket {
         if !path.starts_with(&self.root) {
             return Err(io::Error::other("path traversal detected"));
         }
+        let name = path.file_name().unwrap().to_string_lossy().to_string();
         Ok(File {
+            name,
             file: StdFile::open(path)?,
         })
     }
@@ -108,5 +111,17 @@ impl File {
         let mut buf: String = String::new();
         let size = self.file.read_to_string(&mut buf)?;
         Ok((buf, size.try_into().unwrap()))
+    }
+
+    /// get file name.
+    #[rune::function]
+    pub fn name(&self) -> Result<String, io::Error> {
+        Ok(self.name.clone())
+    }
+    
+    /// get file size.
+    #[rune::function]
+    pub fn size(&self) -> Result<i64, io::Error> {
+        Ok(self.file.metadata()?.len().try_into().unwrap())
     }
 }
