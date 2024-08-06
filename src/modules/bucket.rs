@@ -104,9 +104,16 @@ impl Bucket {
 
     #[rune::function]
     pub fn mapped(&self, rel_path: &str, request_id: i64) -> Result<String, io::Error> {
-        let files = self._list(rel_path)?;
-        let file_index = request_id as usize % files.len();
-        Ok(files[file_index].clone())
+        let path = self.root.join(rel_path).to_owned().canonicalize()?;
+        if !path.starts_with(&self.root) {
+            return Err(io::Error::other("path traversal detected"));
+        }
+        let mut result = read_dir(path)?
+            .map(|res| res.map(|e| e.file_name().to_string_lossy().to_string()))
+            .collect::<Result<Vec<_>, io::Error>>()?;
+        result.sort();
+        let mapped_id = request_id as usize % result.len();
+        Ok(result[mapped_id].clone())
     }
 }
 
