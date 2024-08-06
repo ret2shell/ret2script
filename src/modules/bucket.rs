@@ -40,6 +40,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.ty::<File>()?;
     module.function_meta(Bucket::open)?;
     module.function_meta(Bucket::list)?;
+    module.function_meta(Bucket::mapped)?;
     module.function_meta(File::get_bytes)?;
     module.function_meta(File::get_str)?;
     Ok(module)

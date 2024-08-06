@@ -1,7 +1,7 @@
 [package]
 name = "ret2script"
-version = "1.5.10"
-edition = "2021"
+version = "1.5.11"
+edition = "2021
 rust-version = "1.78.0"
 description = "Checker script runner for Ret2Shell - A feature-riches CTF challenge platform."
 authors = ["Reverier-Xu <reverier.xu@woooo.tech>"]
