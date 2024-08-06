@@ -22,6 +22,9 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(Flag::content)?;
     module.function_meta(Flag::to_string)?;
 
+    module.function_meta(lower)?;
+    module.function_meta(upper)?;
+
     Ok(module)
 }
 
@@ -110,4 +113,14 @@ impl Flag {
     pub fn to_string(&self) -> String {
         format!("{}{{{}}}", self.prefix, self.content)
     }
+}
+
+#[rune::function]
+pub fn lower(s: &str) -> String {
+    s.to_string().to_lowercase()
+}
+
+#[rune::function]
+pub fn upper(s: &str) -> String {
+    s.to_string().to_uppercase()
 }
