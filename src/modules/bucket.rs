@@ -83,16 +83,29 @@ impl Bucket {
         })
     }
 
-    /// list files and folders in subfolder.
-    #[rune::function]
-    pub fn list(&self, rel_path: &str) -> Result<Vec<String>, io::Error> {
+    fn _list(&self, rel_path: &str) -> Result<Vec<String>, io::Error> {
         let path = self.root.join(rel_path).to_owned().canonicalize()?;
         if !path.starts_with(&self.root) {
             return Err(io::Error::other("path traversal detected"));
         }
-        read_dir(path)?
+        let mut result = read_dir(path)?
             .map(|res| res.map(|e| e.path().to_string_lossy().to_string()))
-            .collect::<Result<Vec<_>, io::Error>>()
+            .collect::<Result<Vec<_>, io::Error>>()?;
+        result.sort();
+        Ok(result)
+    }
+
+    /// list files and folders in subfolder.
+    #[rune::function]
+    pub fn list(&self, rel_path: &str) -> Result<Vec<String>, io::Error> {
+        self._list(rel_path)
+    }
+
+    #[rune::function]
+    pub fn mapped(&self, rel_path: &str, request_id: i64) -> Result<String, io::Error> {
+        let files = self._list(rel_path)?;
+        let file_index = request_id as usize % files.len();
+        Ok(files[file_index].clone())
     }
 }
 
@@ -118,7 +131,7 @@ impl File {
     pub fn name(&self) -> Result<String, io::Error> {
         Ok(self.name.clone())
     }
-    
+
     /// get file size.
     #[rune::function]
     pub fn size(&self) -> Result<i64, io::Error> {
