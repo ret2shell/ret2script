@@ -115,9 +115,7 @@ async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Resul
     )?;
     println!("{}\t= {submission:?}", "Submission".yellow());
     let bucket = Bucket::try_new(&cwd)?;
-    let output = vm
-        .async_call(["check"], (bucket, user, team, submission))
-        .await;
+    let output = vm.call(["check"], (bucket, user, team, submission));
     if output.is_err() {
         println!(
             "{}: {output:?}",
@@ -177,7 +175,7 @@ async fn environ(script: impl AsRef<Path>) -> anyhow::Result<()> {
     );
 
     let bucket = Bucket::try_new(&cwd)?;
-    let output = vm.async_call(["environ"], (bucket, user, team)).await?;
+    let output = vm.call(["environ"], (bucket, user, team))?;
     let object: Result<Object, Value> = rune::from_value(output)?;
     if let Ok(object) = object {
         let mut environ: HashMap<String, String> = HashMap::new();
