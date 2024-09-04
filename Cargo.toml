@@ -1,6 +1,6 @@
 [package]
 name = "ret2script"
-version = "1.5.15"
+version = "1.5.16"
 edition = "2021"
 rust-version = "1.78.0"
 description = "Checker script runner for Ret2Shell - A feature-riches CTF challenge platform."
@@ -13,7 +13,7 @@ keywords = ["ctf", "challenge", "rune", "script"]
 license = "MIT"
 
 [dependencies]
-rune = { version="0.13", features = ["workspace", "tokio"] }
+rune = { version = "0.13", features = ["workspace", "tokio"] }
 rune-modules = { version = "0.13", features = ["full"] }
 thiserror = "1.0"
 async-trait = "0.1"
@@ -28,7 +28,7 @@ uuid = { version = "1.10", features = ["v4", "fast-rng"] }
 hex = "0.4"
 clap = { version = "4.5", features = ["derive"], optional = true }
 anyhow = { version = "1.0", optional = true }
-colored = {version = "2.1", optional = true }
+colored = { version = "2.1", optional = true }
 regex = "1.10"
 
 [features]
@@ -42,4 +42,3 @@ path = "src/lib.rs"
 name = "ret2script"
 path = "src/main.rs"
 required-features = ["binary"]
-
