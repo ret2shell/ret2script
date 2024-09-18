@@ -288,7 +288,7 @@ impl FlagStego {
         if template_len >= data.len() {
             return Err(io::Error::other("flag length mispatch"));
         }
-        let (e_data, e_hex) = data.split_at(template_len);
+        let (e_data, e_hex) = data.split_at_checked(template_len).ok_or(io::Error::other("flag length mispatch"))?;
         let mut e_data = e_data.chars().rev();
         let mut e =
             u64::from_str_radix(e_hex, 16).map_err(|_| io::Error::other("flag data broken"))?;
