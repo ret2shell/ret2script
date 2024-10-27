@@ -64,7 +64,7 @@ impl Flag {
         let prefix_end = f
             .find('{')
             .ok_or(io::Error::other("flag format is incorrect"))?;
-        let prefix: String = f.chars().into_iter().take(prefix_end).collect();
+        let prefix: String = f.chars().take(prefix_end).collect();
         let content = f.to_owned().replacen(&prefix, "", 1);
         if !(content.starts_with("{") && content.ends_with("}")) {
             return Err(io::Error::other("flag format is incorrect"))?;
