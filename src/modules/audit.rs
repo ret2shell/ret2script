@@ -1,7 +1,7 @@
 use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
+use ring::digest;
 use ring::rand::{self, SecureRandom};
 use rune::{ContextError, Module};
-use md5;
 use std::{collections::HashMap, io};
 
 use once_cell::sync::Lazy;
@@ -12,7 +12,7 @@ static LEET_CHAR_TABLE: Lazy<HashMap<u8, Vec<u8>>> = Lazy::new(|| {
     map.insert(b'1', vec![b'1', b'l', b'I']);
     map.insert(b'2', vec![b'2', b'Z']);
     map.insert(b'3', vec![b'3']);
-    map.insert(b'4', vec![b'4']);
+    map.insert(b'4', vec![b'4', b'A']);
     map.insert(b'5', vec![b'5', b'S']);
     map.insert(b'6', vec![b'6', b'b']);
     map.insert(b'7', vec![b'7']);
@@ -372,10 +372,10 @@ impl UUIDStego {
     /// hide a number in a uuid with key encrypted.
     pub fn leet(&self, template: &str, data: i64) -> String {
         let (aes_key, _) = generate_aes_pair(&self.key);
-        // dump template into md5 hash
-        let digest = md5::compute(&template.as_bytes());
+        // dump template into 16 bytes hash
+        let digest = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &template.as_bytes());
         let mut hash_slice = [0u8; 16];
-        hash_slice.copy_from_slice(&digest[0..16]);
+        hash_slice.copy_from_slice(&digest.as_ref()[2..18]);
 
         // xor
         let encrypted = encrypt_raw(&data.to_le_bytes(), &self.key);
@@ -436,10 +436,10 @@ impl UUIDStego {
         block.copy_from_slice(&data_slice);
         cipher.decrypt_block(&mut block);
 
-        // dump template into md5 hash
-        let digest = md5::compute(&template.as_bytes());
+        // dump template into 16 bytes hash
+        let digest = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &template.as_bytes());
         let mut hash_slice = [0u8; 16];
-        hash_slice.copy_from_slice(&digest[0..16]);
+        hash_slice.copy_from_slice(&digest.as_ref()[2..18]);
 
         let mut dec = [0u8; 8];
         for i in 0..8 {
@@ -519,7 +519,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 ///
 /// pub fn environ(bucket, user, team) {
 ///   Ok(#{
-///     FLAG: `flag{${audit::encode("yes_you_are_right_but_you_should_play_genshin_impact", "some_key", user.id)}}`
+///     FLAG: `flag{${audit::encode("you_said_right_but_you_should_play_genshin_impact", "some_key", user.id)}}`
 ///   })
 /// }
 /// ```
@@ -538,7 +538,7 @@ pub fn encode(template: &str, key: &str, id: i64) -> String {
 ///
 /// pub fn check(bucket, user, team, submission) {
 ///   ...
-///   let decrypted_team_id = audit::decode("yes_you_are_right_but_you_should_play_genshin_impact", "some_key", "you_s41D_RIGht-6uT_Y0U-ShOULd_pI@y-GeN5H1N_lMP4CT1");
+///   let decrypted_team_id = audit::decode("you_said_right_but_you_should_play_genshin_impact", "some_key", "Y0U_5aiD_RigHt-but_yOU_5HOULD_P1ay-G3NSh1N_ImP@Ct1");
 ///   ...
 /// }
 /// ```
@@ -557,7 +557,7 @@ pub fn decode(template: &str, key: &str, flag: &str) -> Result<i64, io::Error> {
 ///
 /// pub fn environ(bucket, user, team) {
 ///   Ok(#{
-///     FLAG: `flag{${audit::encode_uuid("yes_you_are_right_but_you_should_play_genshin_impact", "some_key", user.id)}}`
+///     FLAG: `flag{${audit::encode_uuid("bangdreamitsmygo", "some_key", user.id, true)}}`
 ///   })
 /// }
 /// ```
@@ -576,7 +576,7 @@ pub fn encode_uuid(template: &str, key: &str, id: i64, with_hyphen: bool) -> Str
 ///
 /// pub fn check(bucket, user, team, submission) {
 ///   ...
-///   let decrypted_team_id = audit::decode_uuid("yes_you_are_right_but_you_should_play_genshin_impact", "some_key", "flag{53817ce7-bdbd-d49c-0c80-7fbdebbb625f}");
+///   let decrypted_team_id = audit::decode_uuid("bangdreamitsmygo", "some_key", "6f262cae-24f9-f1ea-1dab-ba561ee38e57", true);
 ///   ...
 /// }
 /// ```
