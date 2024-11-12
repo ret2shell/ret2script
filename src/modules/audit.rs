@@ -305,8 +305,11 @@ impl FlagStego {
                     .position(|&x| x == ec as u8)
                     .ok_or(io::Error::other("flag data broken"))?;
                 // println!("e: {e}, c: {c}, ec: {ec}, e_index: {char_t_index}");
-                e *= replace.len() as u64;
-                e += char_t_index as u64;
+                e = e
+                    .checked_mul(replace.len() as u64)
+                    .ok_or(io::Error::other("flag data broken"))?
+                    .checked_add(char_t_index as u64)
+                    .ok_or(io::Error::other("flag data broken"))?;
             }
         }
         // println!("e: {e}");
