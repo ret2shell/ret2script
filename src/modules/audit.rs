@@ -1,3 +1,8 @@
+use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
+use ring::{
+    digest,
+    rand::{SecureRandom, SystemRandom},
+};
 use rune::{ContextError, Module};
 use std::{collections::HashMap, io};
 
@@ -69,6 +74,7 @@ static LEET_CHAR_TABLE: Lazy<HashMap<u8, Vec<u8>>> = Lazy::new(|| {
     map.insert(b'Z', vec![b'Z', b'z', b'2']);
     map.insert(b'_', vec![b'_', b'-']);
     map.insert(b'-', vec![b'-', b'_']);
+    map.insert(b'!', vec![b'!', b'1', b'l']);
 
     map
 });
@@ -234,8 +240,34 @@ pub fn decrypt_raw(data: &[u8], key: &str) -> Vec<u8> {
     )
 }
 
+/// Generate AES key and IV from a string
+///
+/// The function calculates the SHA-256 hash of the input string, and extracts
+/// two 16-bytes long data from the hash, treated as the AES key and IV.
+///
+/// # Arguments
+/// * `str` - The string to generate
+///
+/// # Example
+/// ```
+/// let (key, iv) = generate_aes_pair("some data");
+/// println!("Key: {:?}, IV: {:?}", key, iv);
+/// ```
+pub fn generate_aes_pair(str: &str) -> ([u8; 16], [u8; 16]) {
+    let hash = ring::digest::digest(&ring::digest::SHA256, str.as_bytes());
+    let key = hash.as_ref()[0..16].try_into().unwrap();
+    let iv = hash.as_ref()[16..32].try_into().unwrap();
+    (key, iv)
+}
+
 #[derive(Debug, Clone)]
 pub struct FlagStego {
+    pub key: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct UUIDStego {
+    pub with_hyphen: bool,
     pub key: String,
 }
 
@@ -320,6 +352,117 @@ impl FlagStego {
     }
 }
 
+impl UUIDStego {
+    /// Construct a UUIDStego instance.
+    ///
+    /// ## Examples
+    ///
+    /// ```rust
+    /// let uuid_stego = UUIDStego::new("some_key");
+    ///
+    /// let template = "hello_world";
+    /// let encrypted_flag = uuid_stego.leet(template, 114514); // -> encrypted flag
+    /// ```
+    pub fn new(key: &str, with_hyphen: bool) -> Self {
+        Self {
+            with_hyphen,
+            key: key.to_string(),
+        }
+    }
+
+    /// hide a number in a uuid with key encrypted.
+    pub fn leet(&self, template: &str, data: i64) -> String {
+        let (aes_key, _) = generate_aes_pair(&self.key);
+        // dump template into 16 bytes hash
+        let digest = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, template.as_bytes());
+        let mut hash_slice = [0u8; 16];
+        hash_slice.copy_from_slice(&digest.as_ref()[2..18]);
+
+        // xor
+        let encrypted = encrypt_raw(&data.to_le_bytes(), &self.key);
+        // turn the encrypted data into a i64
+        let mut encrypted_slice = [0u8; 8];
+        encrypted_slice.copy_from_slice(&encrypted);
+        // generate random bytes (salt)
+        let rng = SystemRandom::new();
+        let mut rand_bytes = [0u8; 4];
+        rng.fill(&mut rand_bytes).unwrap();
+        for i in 0..8 {
+            if i % 2 == 0 {
+                // we will reserve 4 bytes in order to check whether the
+                // flag is broken
+                hash_slice[i * 2] ^= rand_bytes[i / 2];
+            }
+            hash_slice[i * 2 + 1] ^= encrypted_slice[i];
+        }
+        // println!("hash: {:?}", hash_slice);
+
+        // aes ecb
+        let cipher = aes::Aes128::new_from_slice(&aes_key).unwrap();
+        let mut block = aes::Block::default();
+        block.copy_from_slice(&hash_slice);
+        cipher.encrypt_block(&mut block);
+
+        let mut result = String::new();
+        for i in 0..16 {
+            result.push_str(&format!("{:02x}", block[i]));
+            if self.with_hyphen && (i == 3 || i == 5 || i == 7 || i == 9) {
+                result.push('-');
+            }
+        }
+        // println!("result: {:?}", result);
+        result
+    }
+
+    pub fn unleet(&self, template: &str, data: &str) -> Result<i64, io::Error> {
+        let re = if self.with_hyphen {
+            regex::Regex::new(r"([0-9a-fA-F]{8})-([0-9a-fA-F]{4})-([0-9a-fA-F]{4})-([0-9a-fA-F]{4})-([0-9a-fA-F]{12})").unwrap()
+        } else {
+            regex::Regex::new(r"([0-9a-fA-F]{32})").unwrap()
+        };
+        let _ = re
+            .captures(data)
+            .ok_or(io::Error::other("uuid format mismatch"))?;
+        let mut input_data = String::new();
+        for c in data.chars() {
+            if c != '-' {
+                input_data.push(c);
+            }
+        }
+        // println!("data: {:?}", data);
+        let data_slice =
+            hex::decode(input_data).map_err(|_| io::Error::other("uuid format mismatch"))?;
+
+        let (aes_key, _) = generate_aes_pair(&self.key);
+        // aes ecb
+        let cipher = aes::Aes128::new_from_slice(&aes_key).unwrap();
+        let mut block = aes::Block::default();
+        block.copy_from_slice(&data_slice);
+        cipher.decrypt_block(&mut block);
+
+        // dump template into 16 bytes hash
+        let digest = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, template.as_bytes());
+        let mut hash_slice = [0u8; 16];
+        hash_slice.copy_from_slice(&digest.as_ref()[2..18]);
+
+        let mut dec = [0u8; 8];
+        for i in 0..8 {
+            if i % 2 != 0 {
+                // check whether the flag is broken
+                if hash_slice[i * 2] != (block[i * 2]) {
+                    return Err(io::Error::other("flag data broken"));
+                }
+            }
+            dec[i] = hash_slice[i * 2 + 1] ^ block[i * 2 + 1];
+        }
+
+        let decrypted = decrypt_raw(&dec, &self.key);
+        let mut decrypted_slice = [0u8; 8];
+        decrypted_slice.copy_from_slice(&decrypted);
+        Ok(i64::from_le_bytes(decrypted_slice))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -334,6 +477,20 @@ mod tests {
         let encrypted = flag_stego.leet(template, data);
         println!("Encrypted : {}", encrypted);
         let decrypted = flag_stego.unleet(template, &encrypted);
+        println!("Decrypted : {:?}", decrypted);
+        assert_eq!(decrypted.unwrap(), data);
+    }
+
+    #[test]
+    fn test_uuid_transform() {
+        let uuid_stego = UUIDStego::new("uuid_example_key", true);
+        let template = "Yes you are right but you should watch BanG Dream! It's MyGO!!!!!";
+        println!("Template  : {}", template);
+        let data = 1919810;
+        println!("User ID   : {}", data);
+        let encrypted = uuid_stego.leet(template, data);
+        println!("Encrypted : {}", encrypted);
+        let decrypted = uuid_stego.unleet(template, &encrypted);
         println!("Decrypted : {:?}", decrypted);
         assert_eq!(decrypted.unwrap(), data);
     }
@@ -352,6 +509,8 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::from_meta(self::module_meta)?;
     module.function_meta(encode)?;
     module.function_meta(decode)?;
+    module.function_meta(encode_uuid)?;
+    module.function_meta(decode_uuid)?;
     Ok(module)
 }
 
@@ -364,7 +523,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 ///
 /// pub fn environ(bucket, user, team) {
 ///   Ok(#{
-///     FLAG: `flag{${audit::encode("yes_you_are_right_but_you_should_play_genshin_impact", "some_key", user.id)}}`
+///     FLAG: `flag{${audit::encode("you_said_right_but_you_should_play_genshin_impact", "some_key", user.id)}}`
 ///   })
 /// }
 /// ```
@@ -383,7 +542,7 @@ pub fn encode(template: &str, key: &str, id: i64) -> String {
 ///
 /// pub fn check(bucket, user, team, submission) {
 ///   ...
-///   let decrypted_team_id = audit::decode("yes_you_are_right_but_you_should_play_genshin_impact", "some_key", "you_s41D_RIGht-6uT_Y0U-ShOULd_pI@y-GeN5H1N_lMP4CT1");
+///   let decrypted_team_id = audit::decode("you_said_right_but_you_should_play_genshin_impact", "some_key", "Y0U_5aiD_RigHt-but_yOU_5HOULD_P1ay-G3NSh1N_ImP@Ct1");
 ///   ...
 /// }
 /// ```
@@ -391,4 +550,47 @@ pub fn encode(template: &str, key: &str, id: i64) -> String {
 pub fn decode(template: &str, key: &str, flag: &str) -> Result<i64, io::Error> {
     let flag_stego = FlagStego::new(key);
     flag_stego.unleet(template, flag)
+}
+
+/// encode the flag template and get the UUID with custom key.
+///
+/// In rune script:
+///
+/// ```rust
+/// use ret2api::audit;
+///
+/// pub fn environ(bucket, user, team) {
+///   Ok(#{
+///     FLAG: `flag{${audit::encode_uuid("bangdreamitsmygo", "some_key", user.id, true)}}`
+///   })
+/// }
+/// ```
+#[rune::function]
+pub fn encode_uuid(template: &str, key: &str, id: i64, with_hyphen: bool) -> String {
+    let uuid_stego = UUIDStego::new(key, with_hyphen);
+    uuid_stego.leet(template, id)
+}
+
+/// Decrypt the data from flag (UUID format).
+///
+/// In rune script:
+///
+/// ```rust
+/// use ret2api::audit;
+///
+/// pub fn check(bucket, user, team, submission) {
+///   ...
+///   let decrypted_team_id = audit::decode_uuid("bangdreamitsmygo", "some_key", "6f262cae-24f9-f1ea-1dab-ba561ee38e57", true);
+///   ...
+/// }
+/// ```
+#[rune::function]
+pub fn decode_uuid(
+    template: &str,
+    key: &str,
+    flag: &str,
+    with_hyphen: bool,
+) -> Result<i64, io::Error> {
+    let uuid_stego = UUIDStego::new(key, with_hyphen);
+    uuid_stego.unleet(template, flag)
 }
