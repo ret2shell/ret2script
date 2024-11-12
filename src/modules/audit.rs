@@ -1,6 +1,8 @@
 use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
-use ring::digest;
-use ring::rand::{self, SecureRandom};
+use ring::{
+    digest,
+    rand::{SecureRandom, SystemRandom},
+};
 use rune::{ContextError, Module};
 use std::{collections::HashMap, io};
 
@@ -360,7 +362,7 @@ impl UUIDStego {
     /// ```
     pub fn new(key: &str, with_hyphen: bool) -> Self {
         Self {
-            with_hyphen: with_hyphen,
+            with_hyphen,
             key: key.to_string(),
         }
     }
@@ -369,7 +371,7 @@ impl UUIDStego {
     pub fn leet(&self, template: &str, data: i64) -> String {
         let (aes_key, _) = generate_aes_pair(&self.key);
         // dump template into 16 bytes hash
-        let digest = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &template.as_bytes());
+        let digest = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, template.as_bytes());
         let mut hash_slice = [0u8; 16];
         hash_slice.copy_from_slice(&digest.as_ref()[2..18]);
 
@@ -379,16 +381,16 @@ impl UUIDStego {
         let mut encrypted_slice = [0u8; 8];
         encrypted_slice.copy_from_slice(&encrypted);
         // generate random bytes (salt)
-        let rng = rand::SystemRandom::new();
+        let rng = SystemRandom::new();
         let mut rand_bytes = [0u8; 4];
         rng.fill(&mut rand_bytes).unwrap();
         for i in 0..8 {
             if i % 2 == 0 {
                 // we will reserve 4 bytes in order to check whether the
                 // flag is broken
-                hash_slice[i*2] ^= rand_bytes[i / 2];
+                hash_slice[i * 2] ^= rand_bytes[i / 2];
             }
-            hash_slice[i*2+1] ^= encrypted_slice[i];
+            hash_slice[i * 2 + 1] ^= encrypted_slice[i];
         }
         // println!("hash: {:?}", hash_slice);
 
@@ -415,7 +417,9 @@ impl UUIDStego {
         } else {
             regex::Regex::new(r"([0-9a-fA-F]{32})").unwrap()
         };
-        let _ = re.captures(data).ok_or(io::Error::other("uuid format mismatch"))?;
+        let _ = re
+            .captures(data)
+            .ok_or(io::Error::other("uuid format mismatch"))?;
         let mut input_data = String::new();
         for c in data.chars() {
             if c != '-' {
@@ -423,7 +427,8 @@ impl UUIDStego {
             }
         }
         // println!("data: {:?}", data);
-        let data_slice = hex::decode(input_data).map_err(|_| io::Error::other("uuid format mismatch"))?;
+        let data_slice =
+            hex::decode(input_data).map_err(|_| io::Error::other("uuid format mismatch"))?;
 
         let (aes_key, _) = generate_aes_pair(&self.key);
         // aes ecb
@@ -433,7 +438,7 @@ impl UUIDStego {
         cipher.decrypt_block(&mut block);
 
         // dump template into 16 bytes hash
-        let digest = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &template.as_bytes());
+        let digest = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, template.as_bytes());
         let mut hash_slice = [0u8; 16];
         hash_slice.copy_from_slice(&digest.as_ref()[2..18]);
 
@@ -441,11 +446,11 @@ impl UUIDStego {
         for i in 0..8 {
             if i % 2 != 0 {
                 // check whether the flag is broken
-                if hash_slice[i*2] != (block[i*2]) {
+                if hash_slice[i * 2] != (block[i * 2]) {
                     return Err(io::Error::other("flag data broken"));
                 }
             }
-            dec[i] = hash_slice[i*2+1] ^ block[i*2+1];
+            dec[i] = hash_slice[i * 2 + 1] ^ block[i * 2 + 1];
         }
 
         let decrypted = decrypt_raw(&dec, &self.key);
@@ -577,7 +582,12 @@ pub fn encode_uuid(template: &str, key: &str, id: i64, with_hyphen: bool) -> Str
 /// }
 /// ```
 #[rune::function]
-pub fn decode_uuid(template: &str, key: &str, flag: &str, with_hyphen: bool) -> Result<i64, io::Error> {
+pub fn decode_uuid(
+    template: &str,
+    key: &str,
+    flag: &str,
+    with_hyphen: bool,
+) -> Result<i64, io::Error> {
     let uuid_stego = UUIDStego::new(key, with_hyphen);
     uuid_stego.unleet(template, flag)
 }
