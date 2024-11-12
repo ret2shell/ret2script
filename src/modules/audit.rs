@@ -476,7 +476,7 @@ mod tests {
     #[test]
     fn test_uuid_transform() {
         let uuid_stego = UUIDStego::new("uuid_example_key", true);
-        let template = "Yes you are right but your should watch BanG Dream! It's MyGO!!!!!";
+        let template = "Yes you are right but you should watch BanG Dream! It's MyGO!!!!!";
         println!("Template  : {}", template);
         let data = 1919810;
         println!("User ID   : {}", data);
