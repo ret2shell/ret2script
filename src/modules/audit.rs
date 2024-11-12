@@ -288,10 +288,6 @@ impl FlagStego {
 
     /// hide a number in flag string with key encrypted.
     pub fn leet(&self, template: &str, data: i64) -> String {
-        let stego = UUIDStego::new(&self.key, true);
-        let _ = stego.leet(template, data);
-
-
         let encrypted = encrypt_raw(&data.to_le_bytes(), &self.key);
         // turn the encrypted data into a i64
         let mut encrypted_slice = [0; 8];
