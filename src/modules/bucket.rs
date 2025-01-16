@@ -89,9 +89,13 @@ impl Bucket {
     if !path.starts_with(&self.root) {
       return Err(io::Error::other("path traversal detected"));
     }
-    let mut result = read_dir(path)?
-      .map(|res| res.map(|e| e.path().to_string_lossy().to_string()))
+    let result = read_dir(path)?
+      .map(|res| res.map(|e| e.file_name().to_string_lossy().to_string()))
       .collect::<Result<Vec<_>, io::Error>>()?;
+    let mut result = result
+      .into_iter()
+      .filter(|s| !s.starts_with("."))
+      .collect::<Vec<_>>();
     result.sort();
     Ok(result)
   }
@@ -104,14 +108,7 @@ impl Bucket {
 
   #[rune::function]
   pub fn mapped(&self, rel_path: &str, request_id: i64) -> Result<String, io::Error> {
-    let path = self.root.join(rel_path).to_owned().canonicalize()?;
-    if !path.starts_with(&self.root) {
-      return Err(io::Error::other("path traversal detected"));
-    }
-    let mut result = read_dir(path)?
-      .map(|res| res.map(|e| e.file_name().to_string_lossy().to_string()))
-      .collect::<Result<Vec<_>, io::Error>>()?;
-    result.sort();
+    let result = self._list(rel_path)?;
     let mapped_id = request_id as usize % result.len();
     Ok(result[mapped_id].clone())
   }
