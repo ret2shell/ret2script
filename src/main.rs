@@ -4,7 +4,6 @@ use clap::Parser;
 use colored::Colorize;
 use ret2script::modules::bucket::Bucket;
 use rune::{
-  alloc,
   runtime::Object,
   termcolor::{ColorChoice, StandardStream},
   Any, Context, ContextError, Diagnostics, Module, Source, Sources, Value, Vm,
