@@ -7,8 +7,9 @@ use rune::{
   alloc,
   runtime::Object,
   termcolor::{ColorChoice, StandardStream},
-  Context, Diagnostics, Source, Sources, Value, Vm,
+  Any, Context, ContextError, Diagnostics, Module, Source, Sources, Value, Vm,
 };
+use serde::{Deserialize, Serialize};
 
 #[derive(Parser, Debug)]
 #[command(name = "ret2script")]
@@ -42,6 +43,58 @@ enum Commands {
   },
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AuditMessage {
+  pub peer_team: i64,
+  pub reason: String,
+}
+
+#[derive(Clone, Debug, Any)]
+#[rune(item = ::ret2shell::checker)]
+pub struct RuneUser {
+  #[rune(get)]
+  pub id: i64,
+  #[rune(get)]
+  pub account: String,
+  #[rune(get)]
+  pub institute_id: Option<i64>,
+}
+
+#[derive(Clone, Debug, Any, Default)]
+#[rune(item = ::ret2shell::checker)]
+pub struct RuneTeam {
+  #[rune(get)]
+  pub id: Option<i64>,
+  #[rune(get)]
+  pub name: Option<String>,
+  #[rune(get)]
+  pub institute_id: Option<i64>,
+}
+
+#[derive(Clone, Debug, Any)]
+#[rune(item = ::ret2shell::checker)]
+pub struct RuneSubmission {
+  #[rune(get)]
+  pub id: i64,
+  #[rune(get)]
+  pub user_id: i64,
+  #[rune(get)]
+  pub team_id: Option<i64>,
+  #[rune(get)]
+  pub challenge_id: i64,
+  #[rune(get)]
+  pub content: String,
+}
+
+#[rune::module(::ret2shell::checker)]
+fn module(_stdio: bool) -> Result<Module, ContextError> {
+  let mut module = Module::from_meta(self::module_meta)?;
+  module.ty::<RuneUser>()?;
+  module.ty::<RuneTeam>()?;
+  module.ty::<RuneSubmission>()?;
+  Ok(module)
+}
+
 #[tokio::main]
 async fn main() {
   let args = Commands::parse();
@@ -62,6 +115,7 @@ fn compile_source(script: impl AsRef<Path>) -> anyhow::Result<Vm> {
   context.install(ret2script::modules::audit::module(true)?)?;
   context.install(ret2script::modules::utils::module(true)?)?;
   context.install(ret2script::modules::regex::module(true)?)?;
+  context.install(module(true)?)?;
 
   let mut sources = Sources::new();
   let mut diagnostics = Diagnostics::new();
@@ -82,37 +136,54 @@ fn compile_source(script: impl AsRef<Path>) -> anyhow::Result<Vm> {
 async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Result<()> {
   let cwd = current_dir()?;
   let mut vm = compile_source(script)?;
-  let mut user = Object::new();
-  user.insert(alloc::String::try_from("id")?, rune::to_value(3307)?)?;
-  user.insert(
-    alloc::String::try_from("account")?,
-    rune::to_value("p1ay3r")?,
-  )?;
-  user.insert(
-    alloc::String::try_from("institute_id")?,
-    rune::to_value(1106)?,
-  )?;
+  // let mut user = Object::new();
+  // user.insert(alloc::String::try_from("id")?, rune::to_value(3307)?)?;
+  // user.insert(
+  //   alloc::String::try_from("account")?,
+  //   rune::to_value("p1ay3r")?,
+  // )?;
+  // user.insert(
+  //   alloc::String::try_from("institute_id")?,
+  //   rune::to_value(1106)?,
+  // )?;
+  let user = RuneUser {
+    id: 3307,
+    account: "p1ay3r".to_string(),
+    institute_id: Some(1106),
+  };
   println!("{}\t\t= {user:?}", "User".blue());
-  let mut team = Object::new();
-  team.insert(alloc::String::try_from("id")?, rune::to_value(114514)?)?;
-  team.insert(alloc::String::try_from("name")?, rune::to_value("te4m")?)?;
-  team.insert(
-    alloc::String::try_from("institute_id")?,
-    rune::to_value(1106)?,
-  )?;
+  // let mut team = Object::new();
+  // team.insert(alloc::String::try_from("id")?, rune::to_value(114514)?)?;
+  // team.insert(alloc::String::try_from("name")?, rune::to_value("te4m")?)?;
+  // team.insert(
+  //   alloc::String::try_from("institute_id")?,
+  //   rune::to_value(1106)?,
+  // )?;
+  let team = RuneTeam {
+    id: Some(114514),
+    name: Some("te4m".to_string()),
+    institute_id: Some(1106),
+  };
   println!("{}\t\t= {team:?}", "Team".green());
-  let mut submission = Object::new();
-  submission.insert(alloc::String::try_from("id")?, rune::to_value(1919)?)?;
-  submission.insert(alloc::String::try_from("user_id")?, rune::to_value(3307)?)?;
-  submission.insert(alloc::String::try_from("team_id")?, rune::to_value(114)?)?;
-  submission.insert(
-    alloc::String::try_from("challenge_id")?,
-    rune::to_value(810)?,
-  )?;
-  submission.insert(
-    alloc::String::try_from("content")?,
-    rune::to_value(flag.as_ref())?,
-  )?;
+  // let mut submission = Object::new();
+  // submission.insert(alloc::String::try_from("id")?, rune::to_value(1919)?)?;
+  // submission.insert(alloc::String::try_from("user_id")?, rune::to_value(3307)?)?;
+  // submission.insert(alloc::String::try_from("team_id")?, rune::to_value(114)?)?;
+  // submission.insert(
+  //   alloc::String::try_from("challenge_id")?,
+  //   rune::to_value(810)?,
+  // )?;
+  // submission.insert(
+  //   alloc::String::try_from("content")?,
+  //   rune::to_value(flag.as_ref())?,
+  // )?;
+  let submission = RuneSubmission {
+    id: 1919,
+    user_id: 3307,
+    team_id: Some(114),
+    challenge_id: 810,
+    content: flag.as_ref().to_string(),
+  };
   println!("{}\t= {submission:?}", "Submission".yellow());
   let bucket = Bucket::try_new(&cwd)?;
   let output = vm.call(["check"], (bucket, user, team, submission));
@@ -149,24 +220,34 @@ async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Resul
 async fn environ(script: impl AsRef<Path>) -> anyhow::Result<()> {
   let cwd = current_dir()?;
   let mut vm = compile_source(script)?;
-  let mut user = Object::new();
-  user.insert(alloc::String::try_from("id")?, rune::to_value(3307)?)?;
-  user.insert(
-    alloc::String::try_from("account")?,
-    rune::to_value("p1ay3r")?,
-  )?;
-  user.insert(
-    alloc::String::try_from("institute_id")?,
-    rune::to_value(1106)?,
-  )?;
+  // let mut user = Object::new();
+  // user.insert(alloc::String::try_from("id")?, rune::to_value(3307)?)?;
+  // user.insert(
+  //   alloc::String::try_from("account")?,
+  //   rune::to_value("p1ay3r")?,
+  // )?;
+  // user.insert(
+  //   alloc::String::try_from("institute_id")?,
+  //   rune::to_value(1106)?,
+  // )?;
+  let user = RuneUser {
+    id: 3307,
+    account: "p1ay3r".to_string(),
+    institute_id: Some(1106),
+  };
   println!("{}\t\t= {user:?}", "User".blue());
-  let mut team = Object::new();
-  team.insert(alloc::String::try_from("id")?, rune::to_value(114514)?)?;
-  team.insert(alloc::String::try_from("name")?, rune::to_value("te4m")?)?;
-  team.insert(
-    alloc::String::try_from("institute_id")?,
-    rune::to_value(1106)?,
-  )?;
+  // let mut team = Object::new();
+  // team.insert(alloc::String::try_from("id")?, rune::to_value(114514)?)?;
+  // team.insert(alloc::String::try_from("name")?, rune::to_value("te4m")?)?;
+  // team.insert(
+  //   alloc::String::try_from("institute_id")?,
+  //   rune::to_value(1106)?,
+  // )?;
+  let team = RuneTeam {
+    id: Some(114514),
+    name: Some("te4m".to_string()),
+    institute_id: Some(1106),
+  };
   println!("{}\t\t= {team:?}", "Team".green());
 
   println!(
