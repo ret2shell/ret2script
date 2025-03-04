@@ -117,7 +117,7 @@ fn to_u32(bytes: &[u8], include_length: bool) -> Vec<u32> {
 }
 
 fn mx(sum: u32, y: u32, z: u32, p: u32, e: u32, k: &[u32]) -> u32 {
-  ((z >> 5 ^ y << 2).wrapping_add(y >> 3 ^ z << 4))
+  (((z >> 5) ^ (y << 2)).wrapping_add((y >> 3) ^ (z << 4)))
     ^ ((sum ^ y).wrapping_add(k[(p & 3 ^ e) as usize] ^ z))
 }
 
@@ -143,7 +143,7 @@ fn encrypt_(v: &mut [u32], k: &[u32]) -> Vec<u32> {
   let mut q: u32 = 6 + 52 / length;
   while q > 0 {
     sum = sum.wrapping_add(DELTA);
-    e = sum >> 2 & 3;
+    e = (sum >> 2) & 3;
     for p in 0..n {
       y = v[(p as usize) + 1];
       v[p as usize] = v[p as usize].wrapping_add(mx(sum, y, z, p, e, &key));
@@ -167,7 +167,7 @@ fn decrypt_(v: &mut [u32], k: &[u32]) -> Vec<u32> {
   let q: u32 = 6 + 52 / length;
   let mut sum: u32 = q.wrapping_mul(DELTA);
   while sum != 0 {
-    e = sum >> 2 & 3;
+    e = (sum >> 2) & 3;
     let mut p: usize = n as usize;
     while p > 0 {
       z = v[p - 1];
