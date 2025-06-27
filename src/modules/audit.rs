@@ -309,7 +309,7 @@ impl FlagStego {
       }
     }
     // append the remaining encrypted data as hex string
-    result.push_str(&format!("{:x}", e));
+    result.push_str(&format!("{e:x}"));
     result
   }
 
@@ -473,13 +473,13 @@ mod tests {
   fn test_flag_transform() {
     let flag_stego = FlagStego::new("f80f9a197163");
     let template = "yes_you_are_right_but_you_should_play_genshin_impact";
-    println!("Template  : {}", template);
+    println!("Template  : {template}");
     let data = 1919810;
-    println!("User ID   : {}", data);
+    println!("User ID   : {data}");
     let encrypted = flag_stego.leet(template, data);
-    println!("Encrypted : {}", encrypted);
+    println!("Encrypted : {encrypted}");
     let decrypted = flag_stego.unleet(template, &encrypted);
-    println!("Decrypted : {:?}", decrypted);
+    println!("Decrypted : {decrypted:?}");
     assert_eq!(decrypted.unwrap(), data);
   }
 
@@ -487,13 +487,13 @@ mod tests {
   fn test_uuid_transform() {
     let uuid_stego = UUIDStego::new("uuid_example_key", true);
     let template = "Yes you are right but you should watch BanG Dream! It's MyGO!!!!!";
-    println!("Template  : {}", template);
+    println!("Template  : {template}");
     let data = 1919810;
-    println!("User ID   : {}", data);
+    println!("User ID   : {data}");
     let encrypted = uuid_stego.leet(template, data);
-    println!("Encrypted : {}", encrypted);
+    println!("Encrypted : {encrypted}");
     let decrypted = uuid_stego.unleet(template, &encrypted);
-    println!("Decrypted : {:?}", decrypted);
+    println!("Decrypted : {decrypted:?}");
     assert_eq!(decrypted.unwrap(), data);
   }
 }

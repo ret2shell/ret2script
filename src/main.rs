@@ -166,9 +166,9 @@ async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Resul
   println!("{}\t\t= {team:?}", "Team".green());
   // let mut submission = Object::new();
   // submission.insert(alloc::String::try_from("id")?, rune::to_value(1919)?)?;
-  // submission.insert(alloc::String::try_from("user_id")?, rune::to_value(3307)?)?;
-  // submission.insert(alloc::String::try_from("team_id")?, rune::to_value(114)?)?;
-  // submission.insert(
+  // submission.insert(alloc::String::try_from("user_id")?,
+  // rune::to_value(3307)?)?; submission.insert(alloc::String::try_from("
+  // team_id")?, rune::to_value(114)?)?; submission.insert(
   //   alloc::String::try_from("challenge_id")?,
   //   rune::to_value(810)?,
   // )?;
