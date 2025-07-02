@@ -68,6 +68,8 @@ pub struct RuneTeam {
   pub name: Option<String>,
   #[rune(get)]
   pub institute_id: Option<i64>,
+  #[rune(get)]
+  pub token: Option<String>,
 }
 
 #[derive(Clone, Debug, Any)]
@@ -162,6 +164,7 @@ async fn check(script: impl AsRef<Path>, flag: impl AsRef<str>) -> anyhow::Resul
     id: Some(114514),
     name: Some("te4m".to_string()),
     institute_id: Some(1106),
+    token: Some("V1StGXR8_Z5jdHi6B-myT".to_string()),
   };
   println!("{}\t\t= {team:?}", "Team".green());
   // let mut submission = Object::new();
@@ -246,6 +249,7 @@ async fn environ(script: impl AsRef<Path>) -> anyhow::Result<()> {
     id: Some(114514),
     name: Some("te4m".to_string()),
     institute_id: Some(1106),
+    token: Some("V1StGXR8_Z5jdHi6B-myT".to_string()),
   };
   println!("{}\t\t= {team:?}", "Team".green());
 
