@@ -1,6 +1,7 @@
 use std::{f64, io};
 
 use ring::{
+  aead::NONCE_LEN,
   digest::{Context, SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA512},
   rand::{self, SecureRandom},
 };
@@ -20,6 +21,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
   module.ty::<Rng>()?;
   module.function_meta(Rng::rand)?;
   module.function_meta(Rng::rand_int)?;
+  module.function_meta(Rng::rand_bytes)?;
   module.ty::<Uuid>()?;
   module.function_meta(Uuid::new)?;
   module.ty::<Nanoid>()?;
@@ -31,6 +33,16 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
   module.function_meta(Hash::sha1sum_str)?;
   module.function_meta(Hash::sha256sum)?;
   module.function_meta(Hash::sha256sum_str)?;
+  module.ty::<Hmac>()?;
+  module.function_meta(Hmac::hmac_sha256_sign)?;
+  module.function_meta(Hmac::hmac_sha256_verify)?;
+  module.function_meta(Hmac::hmac_sha512_sign)?;
+  module.function_meta(Hmac::hmac_sha512_verify)?;
+  module.ty::<AesGcm>()?;
+  module.function_meta(AesGcm::encrypt_128)?;
+  module.function_meta(AesGcm::decrypt_128)?;
+  module.function_meta(AesGcm::encrypt_256)?;
+  module.function_meta(AesGcm::decrypt_256)?;
 
   Ok(module)
 }
@@ -83,6 +95,19 @@ impl Rng {
       result -= ((result - max) as f64 / (step as f64)).ceil() as i64 * step;
     }
     Ok(result)
+  }
+
+  #[rune::function(path = Self::rand_bytes)]
+  pub fn rand_bytes(len: usize) -> Result<Vec<u8>, io::Error> {
+    if len == 0 {
+      return Err(io::Error::other("length must be greater than 0"));
+    }
+    let rng = rand::SystemRandom::new();
+    let mut buffer = vec![0u8; len];
+    rng
+      .fill(&mut buffer)
+      .map_err(|_| io::Error::other("generate random bytes failed"))?;
+    Ok(buffer)
   }
 }
 
@@ -170,5 +195,199 @@ impl Hash {
     let mut context = Context::new(&SHA1_FOR_LEGACY_USE_ONLY);
     context.update(message.as_bytes());
     hex::encode(context.finish().as_ref())
+  }
+}
+
+/// Hmac functions
+///
+/// functions here wraps the hmac module in `ring` crate.
+#[derive(Any, Debug)]
+#[rune(item = ::ret2api::crypto)]
+pub struct Hmac;
+
+impl Hmac {
+  // Hmac functions can be added here in the future.
+  // Currently, we do not provide hmac functions in ret2api.
+  // If you need hmac functions, please use `ring::hmac` directly.
+  #[rune::function(path = Self::hmac_sha256_sign)]
+  pub fn hmac_sha256_sign(key: &[u8], message: &[u8]) -> Vec<u8> {
+    let key = ring::hmac::Key::new(ring::hmac::HMAC_SHA256, key);
+    let signature = ring::hmac::sign(&key, message);
+    signature.as_ref().to_vec()
+  }
+
+  #[rune::function(path = Self::hmac_sha256_verify)]
+  pub fn hmac_sha256_verify(key: &[u8], message: &[u8], signature: &[u8]) -> bool {
+    let key = ring::hmac::Key::new(ring::hmac::HMAC_SHA256, key);
+    ring::hmac::verify(&key, message, signature).is_ok()
+  }
+
+  #[rune::function(path = Self::hmac_sha512_sign)]
+  pub fn hmac_sha512_sign(key: &[u8], message: &[u8]) -> Vec<u8> {
+    let key = ring::hmac::Key::new(ring::hmac::HMAC_SHA512, key);
+    let signature = ring::hmac::sign(&key, message);
+    signature.as_ref().to_vec()
+  }
+
+  #[rune::function(path = Self::hmac_sha512_verify)]
+  pub fn hmac_sha512_verify(key: &[u8], message: &[u8], signature: &[u8]) -> bool {
+    let key = ring::hmac::Key::new(ring::hmac::HMAC_SHA512, key);
+    ring::hmac::verify(&key, message, signature).is_ok()
+  }
+}
+
+#[derive(Any, Debug)]
+#[rune(item = ::ret2api::crypto)]
+pub struct AesGcm;
+
+impl AesGcm {
+  // AES functions can be added here in the future.
+  // Currently, we do not provide AES functions in ret2api.
+  // If you need AES functions, please use `ring::aead` or `ring::aes` directly.
+  #[rune::function(path = Self::encrypt_128)]
+  pub fn encrypt_128(key: &[u8], data: &[u8], nonce: &[u8]) -> Result<Vec<u8>, io::Error> {
+    if key.len() != ring::aead::AES_128_GCM.key_len() {
+      return Err(io::Error::other(format!(
+        "key length must be {} bytes",
+        ring::aead::AES_128_GCM.key_len()
+      )));
+    }
+    if data.is_empty() {
+      return Err(io::Error::other("data cannot be empty"));
+    }
+
+    // Create a new AES-128 cipher
+    let cipher = ring::aead::LessSafeKey::new(
+      ring::aead::UnboundKey::new(&ring::aead::AES_128_GCM, key)
+        .map_err(|_| io::Error::other("failed to create AES-128 cipher"))?,
+    );
+
+    let nonce: [u8; NONCE_LEN] = nonce
+      .get(..NONCE_LEN)
+      .and_then(|slice| slice.try_into().ok())
+      .ok_or_else(|| io::Error::other(format!("nonce must be {NONCE_LEN} bytes").as_str()))?;
+    let mut encrypted_data = data.to_vec();
+    let aad = ring::aead::Aad::empty();
+    cipher
+      .seal_in_place_append_tag(
+        ring::aead::Nonce::assume_unique_for_key(nonce),
+        aad,
+        &mut encrypted_data,
+      )
+      .map_err(|_| io::Error::other("encryption failed"))?;
+
+    Ok(encrypted_data)
+  }
+
+  #[rune::function(path = Self::decrypt_128)]
+  pub fn decrypt_128(key: &[u8], data: &[u8], nonce: &[u8]) -> Result<Vec<u8>, io::Error> {
+    if key.len() != ring::aead::AES_128_GCM.key_len() {
+      return Err(io::Error::other(format!(
+        "key length must be {} bytes",
+        ring::aead::AES_128_GCM.key_len()
+      )));
+    }
+    if data.is_empty() {
+      return Err(io::Error::other("data cannot be empty"));
+    }
+
+    // Create a new AES-128 cipher
+    let cipher = ring::aead::LessSafeKey::new(
+      ring::aead::UnboundKey::new(&ring::aead::AES_128_GCM, key)
+        .map_err(|_| io::Error::other("failed to create AES-128 cipher"))?,
+    );
+    let mut decrypted_data = data.to_vec();
+    let aad = ring::aead::Aad::empty();
+    let nonce: [u8; NONCE_LEN] = nonce
+      .get(..NONCE_LEN)
+      .and_then(|slice| slice.try_into().ok())
+      .ok_or_else(|| io::Error::other(format!("nonce must be {NONCE_LEN} bytes").as_str()))?;
+    cipher
+      .open_in_place(
+        ring::aead::Nonce::assume_unique_for_key(nonce),
+        aad,
+        &mut decrypted_data,
+      )
+      .map_err(|_| io::Error::other("decryption failed"))?;
+    let tag_len = cipher.algorithm().tag_len();
+    let plaintext_len = decrypted_data.len() - tag_len;
+    decrypted_data.truncate(plaintext_len);
+    Ok(decrypted_data)
+  }
+
+  #[rune::function(path = Self::encrypt_256)]
+  pub fn encrypt_256(key: &[u8], data: &[u8], nonce: &[u8]) -> Result<Vec<u8>, io::Error> {
+    if key.len() != ring::aead::AES_256_GCM.key_len() {
+      return Err(io::Error::other(format!(
+        "key length must be {} bytes",
+        ring::aead::AES_256_GCM.key_len()
+      )));
+    }
+    if data.is_empty() {
+      return Err(io::Error::other("data cannot be empty"));
+    }
+
+    // Create a new AES-256 cipher
+    let cipher = ring::aead::LessSafeKey::new(
+      ring::aead::UnboundKey::new(&ring::aead::AES_256_GCM, key)
+        .map_err(|_| io::Error::other("failed to create AES-256 cipher"))?,
+    );
+
+    let nonce: [u8; NONCE_LEN] = nonce
+      .get(..NONCE_LEN)
+      .and_then(|slice| slice.try_into().ok())
+      .ok_or_else(|| io::Error::other(format!("nonce must be {NONCE_LEN} bytes").as_str()))?;
+
+    let mut encrypted_data = data.to_vec();
+
+    let aad = ring::aead::Aad::empty();
+    cipher
+      .seal_in_place_append_tag(
+        ring::aead::Nonce::assume_unique_for_key(nonce),
+        aad,
+        &mut encrypted_data,
+      )
+      .map_err(|_| io::Error::other("encryption failed"))?;
+
+    Ok(encrypted_data)
+  }
+
+  #[rune::function(path = Self::decrypt_256)]
+  pub fn decrypt_256(key: &[u8], data: &[u8], nonce: &[u8]) -> Result<Vec<u8>, io::Error> {
+    if key.len() != ring::aead::AES_256_GCM.key_len() {
+      return Err(io::Error::other(
+        format!(
+          "key length must be {} bytes",
+          ring::aead::AES_256_GCM.key_len(),
+        )
+        .as_str(),
+      ));
+    }
+
+    if data.is_empty() {
+      return Err(io::Error::other("data cannot be empty"));
+    }
+    // Create a new AES-256 cipher
+    let cipher = ring::aead::LessSafeKey::new(
+      ring::aead::UnboundKey::new(&ring::aead::AES_256_GCM, key)
+        .map_err(|_| io::Error::other("failed to create AES-256 cipher"))?,
+    );
+    let mut decrypted_data = data.to_vec();
+    let aad = ring::aead::Aad::empty();
+    let nonce: [u8; NONCE_LEN] = nonce
+      .get(..NONCE_LEN)
+      .and_then(|slice| slice.try_into().ok())
+      .ok_or_else(|| io::Error::other(format!("nonce must be {NONCE_LEN} bytes").as_str()))?;
+    cipher
+      .open_in_place(
+        ring::aead::Nonce::assume_unique_for_key(nonce),
+        aad,
+        &mut decrypted_data,
+      )
+      .map_err(|_| io::Error::other("decryption failed"))?;
+    let tag_len = cipher.algorithm().tag_len();
+    let plaintext_len = decrypted_data.len() - tag_len;
+    decrypted_data.truncate(plaintext_len);
+    Ok(decrypted_data)
   }
 }

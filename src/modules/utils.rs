@@ -24,6 +24,10 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 
   module.function_meta(lower)?;
   module.function_meta(upper)?;
+  module.function_meta(hex2bytes)?;
+  module.function_meta(bytes2hex)?;
+  module.function_meta(bytes2str)?;
+  module.function_meta(str2bytes)?;
 
   Ok(module)
 }
@@ -123,4 +127,35 @@ pub fn lower(s: &str) -> String {
 #[rune::function]
 pub fn upper(s: &str) -> String {
   s.to_string().to_uppercase()
+}
+
+#[rune::function]
+pub fn hex2bytes(s: &str) -> Result<Vec<u8>, io::Error> {
+  let s = s.trim();
+  if s.len() % 2 != 0 {
+    return Err(io::Error::other("hex string length must be even"));
+  }
+  (0..s.len())
+    .step_by(2)
+    .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
+    .collect::<Result<Vec<_>, _>>()
+    .map_err(|_| io::Error::other("invalid hex string"))
+}
+
+#[rune::function]
+pub fn bytes2hex(bytes: &[u8]) -> String {
+  bytes
+    .iter()
+    .map(|b| format!("{:02x}", b.to_owned()))
+    .collect()
+}
+
+#[rune::function]
+pub fn bytes2str(bytes: &[u8]) -> String {
+  String::from_utf8_lossy(bytes).to_string()
+}
+
+#[rune::function]
+pub fn str2bytes(s: &str) -> Vec<u8> {
+  s.as_bytes().to_vec()
 }

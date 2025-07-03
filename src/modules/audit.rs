@@ -1,8 +1,8 @@
 use std::{collections::HashMap, io};
 
-use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
 use once_cell::sync::Lazy;
 use ring::{
+  aead::CHACHA20_POLY1305,
   digest,
   rand::{SecureRandom, SystemRandom},
 };
@@ -240,24 +240,40 @@ pub fn decrypt_raw(data: &[u8], key: &str) -> Vec<u8> {
   )
 }
 
-/// Generate AES key and IV from a string
-///
-/// The function calculates the SHA-256 hash of the input string, and extracts
-/// two 16-bytes long data from the hash, treated as the AES key and IV.
-///
-/// # Arguments
-/// * `str` - The string to generate
-///
-/// # Example
-/// ```
-/// let (key, iv) = generate_aes_pair("some data");
-/// println!("Key: {:?}, IV: {:?}", key, iv);
-/// ```
-pub fn generate_aes_pair(str: &str) -> ([u8; 16], [u8; 16]) {
-  let hash = ring::digest::digest(&ring::digest::SHA256, str.as_bytes());
-  let key = hash.as_ref()[0..16].try_into().unwrap();
-  let iv = hash.as_ref()[16..32].try_into().unwrap();
-  (key, iv)
+use ring::aead;
+
+fn generate_chacha20_key(key: &[u8]) -> ([u8; 32], [u8; 12]) {
+  // sha256 the key, get a 16 bytes key
+  let mut hasher = digest::Context::new(&digest::SHA256);
+  hasher.update(key);
+  let digest = hasher.finish();
+  let mut chacha20_key = [0u8; 32];
+  chacha20_key.copy_from_slice(&digest.as_ref()[..32]);
+  // nonce follows key
+  let mut nonce = [0u8; 12];
+  nonce.copy_from_slice(&digest.as_ref()[digest.as_ref().len() - 12..]);
+  (chacha20_key, nonce)
+}
+
+fn chacha20_less_safe(key: &[u8], data: &[u8]) -> Vec<u8> {
+  if data.is_empty() {
+    return Vec::new();
+  }
+  let (chacha20_key, nonce) = generate_chacha20_key(key);
+  let cipher = aead::LessSafeKey::new(
+    aead::UnboundKey::new(&CHACHA20_POLY1305, &chacha20_key)
+      .expect("failed to create CHACHA20_POLY1305 cipher"),
+  );
+  let mut encrypted_data = data.to_vec();
+  let aad = aead::Aad::empty();
+  cipher
+    .seal_in_place_append_tag(
+      aead::Nonce::assume_unique_for_key(nonce),
+      aad,
+      &mut encrypted_data,
+    )
+    .expect("encryption failed");
+  encrypted_data
 }
 
 #[derive(Debug, Clone)]
@@ -371,7 +387,6 @@ impl UUIDStego {
 
   /// hide a number in a uuid with key encrypted.
   pub fn leet(&self, template: &str, data: i64) -> String {
-    let (aes_key, _) = generate_aes_pair(&self.key);
     // dump template into 16 bytes hash
     let digest = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, template.as_bytes());
     let mut hash_slice = [0u8; 16];
@@ -396,20 +411,16 @@ impl UUIDStego {
     }
     // println!("hash: {:?}", hash_slice);
 
-    // aes ecb
-    let cipher = aes::Aes128::new_from_slice(&aes_key).unwrap();
-    let mut block = aes::Block::default();
-    block.copy_from_slice(&hash_slice);
-    cipher.encrypt_block(&mut block);
+    // chacha20
+    let block = chacha20_less_safe(self.key.as_bytes(), &hash_slice);
 
     let mut result = String::new();
-    for i in 0..16 {
-      result.push_str(&format!("{:02x}", block[i]));
+    for (i, v) in block.iter().enumerate().take(16) {
+      result.push_str(&format!("{v:02x}"));
       if self.with_hyphen && (i == 3 || i == 5 || i == 7 || i == 9) {
         result.push('-');
       }
     }
-    // println!("result: {:?}", result);
     result
   }
 
@@ -435,12 +446,7 @@ impl UUIDStego {
     let data_slice =
       hex::decode(input_data).map_err(|_| io::Error::other("uuid format mismatch"))?;
 
-    let (aes_key, _) = generate_aes_pair(&self.key);
-    // aes ecb
-    let cipher = aes::Aes128::new_from_slice(&aes_key).unwrap();
-    let mut block = aes::Block::default();
-    block.copy_from_slice(&data_slice);
-    cipher.decrypt_block(&mut block);
+    let block = chacha20_less_safe(self.key.as_bytes(), &data_slice);
 
     // dump template into 16 bytes hash
     let digest = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, template.as_bytes());
