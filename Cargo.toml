@@ -10,7 +10,7 @@ name          = "ret2script"
 readme        = "./README.md"
 repository    = "https://github.com/ret2shell/ret2script"
 rust-version  = "1.88.0"
-version       = "1.8.4"
+version       = "1.8.5"
 
 [dependencies]
 aes          = "0.8"
