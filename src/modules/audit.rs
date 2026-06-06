@@ -7,6 +7,7 @@ use ring::{
   rand::{SecureRandom, SystemRandom},
 };
 use rune::{ContextError, Module};
+use uuid::Uuid;
 
 static LEET_CHAR_TABLE: Lazy<HashMap<u8, Vec<u8>>> = Lazy::new(|| {
   let mut map = HashMap::new();
@@ -409,42 +410,22 @@ impl UUIDStego {
       }
       hash_slice[i * 2 + 1] ^= encrypted_slice[i];
     }
-    // println!("hash: {:?}", hash_slice);
 
     // chacha20
     let block = chacha20_less_safe(self.key.as_bytes(), &hash_slice);
 
-    let mut result = String::new();
-    for (i, v) in block.iter().enumerate().take(16) {
-      result.push_str(&format!("{v:02x}"));
-      if self.with_hyphen && (i == 3 || i == 5 || i == 7 || i == 9) {
-        result.push('-');
-      }
+    let uuid = Uuid::from_bytes(block[..16].try_into().unwrap());
+    if self.with_hyphen {
+      uuid.to_string()
+    } else {
+      uuid.simple().to_string()
     }
-    result
   }
 
   pub fn unleet(&self, template: &str, data: &str) -> Result<i64, io::Error> {
-    let re = if self.with_hyphen {
-      regex::Regex::new(
-        r"([0-9a-fA-F]{8})-([0-9a-fA-F]{4})-([0-9a-fA-F]{4})-([0-9a-fA-F]{4})-([0-9a-fA-F]{12})",
-      )
-      .unwrap()
-    } else {
-      regex::Regex::new(r"([0-9a-fA-F]{32})").unwrap()
-    };
-    let _ = re
-      .captures(data)
-      .ok_or(io::Error::other("uuid format mismatch"))?;
-    let mut input_data = String::new();
-    for c in data.chars() {
-      if c != '-' {
-        input_data.push(c);
-      }
-    }
-    // println!("data: {:?}", data);
-    let data_slice =
-      hex::decode(input_data).map_err(|_| io::Error::other("uuid format mismatch"))?;
+    let uuid =
+      Uuid::parse_str(data).map_err(|_| io::Error::other("uuid format mismatch"))?;
+    let data_slice = uuid.as_bytes().to_vec();
 
     let block = chacha20_less_safe(self.key.as_bytes(), &data_slice);
 
